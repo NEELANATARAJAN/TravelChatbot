@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistant</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app" id="app">
+  <aside id="sidebar" aria-label="Conversations">
+    <div class="side-top">
+      <div class="brand" id="brand">Assistant</div>
+      <button id="newchat" type="button">+ New chat</button>
+    </div>
+    <nav id="convlist"></nav>
+    <div class="side-foot">Chats are saved in this browser only.</div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <section class="main">
+    <header>
+      <button id="menu" class="icon" type="button" aria-label="Open menu">&#9776;</button>
+      <label class="picker">
+        <span class="sr">Model</span>
+        <select id="model"></select>
+      </label>
+      <span id="modelnote"></span>
+      <button id="tplchip" class="tplchip" type="button" hidden title="This chat uses a prompt template. Click to stop using it."></button>
+    </header>
+
+    <div id="scroll"><div class="thread" id="thread"></div></div>
+
+    <footer>
+      <div class="tpl-panel" id="tplpanel" hidden>
+        <div class="tpl-head">
+          <label class="picker"><span class="sr">Prompt template</span><select id="tplselect"></select></label>
+          <button id="tplclose" class="tpl-x" type="button" aria-label="Close templates">&times;</button>
+        </div>
+        <p id="tpldesc" class="tpl-desc"></p>
+        <div id="tplfields" class="tpl-fields"></div>
+        <div id="tplpreview" class="tpl-preview" aria-label="Prompt preview"></div>
+        <div class="tpl-foot">
+          <span id="tplmissing" class="tpl-missing"></span>
+          <button id="tplinsert" class="tpl-btn" type="button">Insert into message</button>
+          <button id="tplsend" class="tpl-btn primary" type="button">Fill &amp; send</button>
+        </div>
+      </div>
+      <div class="composer">
+        <button id="tplbtn" class="tplbtn" type="button" aria-label="Prompt templates" title="Prompt templates">&#123;&#125;</button>
+        <textarea id="input" rows="1" placeholder="Message the assistant"></textarea>
+        <button id="send" type="button" aria-label="Send message" disabled>&#8593;</button>
+      </div>
+      <div class="inlinevars" id="inlinevars" hidden></div>
+      <div class="disclaimer">AI can make mistakes. Please double-check important information.</div>
+    </footer>
+  </section>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

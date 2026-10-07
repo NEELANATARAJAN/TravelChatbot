@@ -1,0 +1,21 @@
+[project]
+name = "vllm-chat"
+version = "0.1.0"
+description = "Claude-style chat UI for self-hosted vLLM models, with generation settings controlled on the server"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "httpx>=0.27",
+]
+
+# Optional tooling, installed only when asked for: `uv sync --group deploy`
+[dependency-groups]
+deploy = [
+    "modal>=1.6",   # CLI used to deploy deploy/modal_vllm.py to Modal
+]
+
+[tool.uv]
+# This is an application, not a library: install the dependencies but don't build/install the project.
+package = false

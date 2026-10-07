@@ -1,0 +1,50 @@
+# Two vLLM servers on one NVIDIA GPU host, matching the default models.json.
+#
+#   export VLLM_API_KEY=$(openssl rand -hex 24)     # same value must be set for the chat app
+#   export HUGGING_FACE_HUB_TOKEN=hf_xxx            # needed for gated models such as Llama
+#   docker compose up -d
+#
+# Requires Linux, an NVIDIA GPU and the NVIDIA Container Toolkit. (Not for Apple Silicon Macs.)
+#
+# - Ports are bound to 127.0.0.1 so vLLM is NOT reachable from the internet. Only the chat
+#   server on this host talks to it. If the chat app runs on another machine, put both on a
+#   private network instead of publishing these ports.
+# - Two ~7-8B models share one GPU, so each is capped at ~45% of GPU memory. With a bigger
+#   GPU (or one GPU per model) raise --gpu-memory-utilization / use `device_ids`.
+# - Add a service per model. Each vLLM process serves exactly one model on its own port,
+#   and each gets an entry in models.json with the matching base_url.
+
+x-vllm: &vllm
+  image: vllm/vllm-openai:latest
+  restart: unless-stopped
+  environment:
+    - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+  volumes:
+    - ${HF_CACHE:-~/.cache/huggingface}:/root/.cache/huggingface
+  ipc: host
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+services:
+  qwen:
+    <<: *vllm
+    ports: ["127.0.0.1:8000:8000"]
+    command:
+      - --model=Qwen/Qwen2.5-7B-Instruct
+      - --api-key=${VLLM_API_KEY:?set VLLM_API_KEY}
+      - --max-model-len=8192
+      - --gpu-memory-utilization=0.45
+
+  llama:
+    <<: *vllm
+    ports: ["127.0.0.1:8001:8000"]
+    command:
+      - --model=meta-llama/Llama-3.1-8B-Instruct
+      - --api-key=${VLLM_API_KEY:?set VLLM_API_KEY}
+      - --max-model-len=8192
+      - --gpu-memory-utilization=0.45

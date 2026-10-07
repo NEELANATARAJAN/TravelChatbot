@@ -1,0 +1,39 @@
+{
+  "app": {
+    "title": "Assistant",
+    "greeting": "How can I help you today?",
+    "default_model": "qwen2.5-7b",
+    "suggestions": [
+      "Explain how vector databases work in simple terms",
+      "Help me draft a polite follow-up email",
+      "Write a Python function to merge two sorted lists"
+    ],
+    "system_prompt_file": "prompts/system.md"
+  },
+
+  "limits": {
+    "max_messages": 20,
+    "max_message_chars": 4000,
+    "max_total_chars": 16000,
+    "requests_per_minute": 10,
+    "max_concurrent": 4
+  },
+
+  "models": [
+    {
+      "id": "qwen2.5-7b",
+      "label": "Qwen 2.5 7B",
+      "description": "Fast, well-rounded everyday model",
+      "base_url": "https://PASTE-YOUR-MODAL-URL-HERE/v1",
+      "vllm_model": "Qwen/Qwen2.5-7B-Instruct",
+      "always_available": true,
+      "timeout_seconds": 600,
+      "params": {
+        "temperature": 0.6,
+        "top_p": 0.9,
+        "max_tokens": 512,
+        "repetition_penalty": 1.05
+      }
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "app": {
+    "title": "Assistant",
+    "greeting": "How can I help you today?",
+    "default_model": "qwen2.5-7b",
+    "suggestions": [
+      "Explain how vector databases work in simple terms",
+      "Help me draft a polite follow-up email",
+      "Write a Python function to merge two sorted lists",
+      "Give me a 3-day plan for learning SQL"
+    ],
+    "system_prompt_file": "prompts/system.md"
+  },
+
+  "limits": {
+    "max_messages": 30,
+    "max_message_chars": 8000,
+    "max_total_chars": 24000,
+    "requests_per_minute": 20,
+    "max_concurrent": 16
+  },
+
+  "models": [
+    {
+      "id": "qwen2.5-7b",
+      "label": "Qwen 2.5 7B",
+      "description": "Fast, well-rounded everyday model",
+      "base_url": "http://localhost:8000/v1",
+      "vllm_model": "Qwen/Qwen2.5-7B-Instruct",
+      "params": {
+        "temperature": 0.6,
+        "top_p": 0.9,
+        "max_tokens": 1024,
+        "repetition_penalty": 1.05
+      }
+    },
+    {
+      "id": "llama-3.1-8b",
+      "label": "Llama 3.1 8B",
+      "description": "Strong at writing and reasoning",
+      "base_url": "http://localhost:8001/v1",
+      "vllm_model": "meta-llama/Llama-3.1-8B-Instruct",
+      "params": {
+        "temperature": 0.5,
+        "top_p": 0.9,
+        "max_tokens": 1024
+      },
+      "system_prompt_file": null
+    }
+  ]
+}
