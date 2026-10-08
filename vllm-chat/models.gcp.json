@@ -1,0 +1,38 @@
+{
+  "app": {
+    "title": "Assistant",
+    "greeting": "Planning a trip?",
+    "default_model": "qwen2.5-7b",
+    "suggestions": [
+      "Plan a 3-day trip to Tokyo",
+      "A relaxed weekend in Lisbon",
+      "Where should I go in March for good weather?"
+    ],
+    "system_prompt_file": "prompts/system.md",
+    "opening_message_file": "prompts/opening.md"
+  },
+  "limits": {
+    "max_messages": 20,
+    "max_message_chars": 4000,
+    "max_total_chars": 16000,
+    "requests_per_minute": 10,
+    "max_concurrent": 4
+  },
+  "models": [
+    {
+      "id": "qwen2.5-7b",
+      "label": "Qwen 2.5 7B",
+      "description": "Fast, well-rounded everyday model",
+      "base_url": "https://PASTE-YOUR-CLOUD-RUN-URL-HERE/v1",
+      "vllm_model": "Qwen/Qwen2.5-7B-Instruct",
+      "always_available": true,
+      "timeout_seconds": 600,
+      "params": {
+        "temperature": 0.6,
+        "top_p": 0.9,
+        "max_tokens": 512,
+        "repetition_penalty": 1.05
+      }
+    }
+  ]
+}

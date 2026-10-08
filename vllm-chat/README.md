@@ -92,11 +92,32 @@ curl https://YOUR-MODAL-URL/v1/models -H "Authorization: Bearer $VLLM_API_KEY"  
 
 What to expect and how to stay inside the free credit:
 
-- **The first message after a quiet period is slow** (the GPU has to start and load the model, typically a minute or two). The UI says so after a few seconds. The very first start is longer because it downloads about 15 GB once.
+- **The first message after a quiet period is slow** (the GPU has to start and load the model, measured on an L4: about 3 to 4 minutes, including about 2 minutes of vLLM engine start-up). The UI says so after a few seconds. The very first start is longer because it downloads about 15 GB once.
 - **Billing is per second while the GPU is up**, including the idle `SCALEDOWN_MINUTES` (default 5) after the last request. An L4 is about $0.80/hour at list price, so $30 is roughly 37 GPU-hours.
 - **`max_containers=1`** in the script caps spend at one GPU. `models.modal.json` also uses a lower `max_tokens` and rate limit than the default config.
 - **`always_available: true`** in `models.modal.json` is deliberate. Without it the chat server's health check would wake the GPU and keep it running all day. The trade-off is that the picker can't show this model as "unavailable".
 - Watch usage on the Modal dashboard, and stop the app with `modal app stop vllm-chat-backend`. Set a spending limit in your workspace billing settings if one is offered.
+
+### On Google Cloud Run (L4 GPU that scales to zero)
+
+Same idea as Modal, on Google Cloud. Both can exist side by side: each has its own config file, so you pick one when you start the chat server and can switch at any time.
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID       # billing must be enabled (the $300 trial credit counts)
+./deploy/deploy_gcp.sh                           # build image, download model, deploy GPU service
+MODELS_FILE=models.gcp.json ./run.sh             # chat server on your laptop, model on Cloud Run
+./deploy/deploy_gcp_chat.sh                      # optional: host the chat web app on Cloud Run too
+./deploy/teardown_gcp.sh                         # delete the services; add --all to delete bucket + images
+```
+
+- **What gets created:** a Cloud Storage bucket holding the model weights (downloaded once by a Cloud Run job), an Artifact Registry repository with the vLLM image (built by Cloud Build from `deploy/gcp/vllm/`), the `vllm-backend` GPU service, and (optionally) the `vllm-chat-ui` service. The same `VLLM_API_KEY` in `.env` protects the model endpoint, as on Modal.
+- **Settings** (environment variables for `deploy_gcp.sh`): `PROJECT_ID`, `REGION` (default `us-central1`), `MODEL_ID`, `VLLM_TAG` (the `vllm/vllm-openai` image version), `BUCKET`, `HF_TOKEN` (gated models only), `FORCE_BUILD=1`.
+- **Cost:** the L4 on Cloud Run is billed per second while an instance runs, idle time included, and not at all when it has scaled to zero. The bucket (about 15 GB) and the images cost a little every month; `teardown_gcp.sh --all` removes them. Google Cloud has no hard spending cap, so set a budget alert in Billing, and run the teardown script when you stop using it.
+- **Cold starts** include loading the weights through the bucket mount, which can be slower than a local disk. The chat app waits for the GPU (up to the model's `timeout_seconds`), exactly as with Modal.
+- **If the GPU service fails to deploy:** the script prints the usual causes, mostly missing L4 GPU quota (request 1 under IAM & Admin > Quotas) or an account that cannot use GPUs yet.
+- **If the container starts but crashes with a CUDA or driver error,** try another image version: `VLLM_TAG=<tag> FORCE_BUILD=1 ./deploy/deploy_gcp.sh`. The default tag was chosen to match the vLLM version used on Modal, but it was not tested on Cloud Run's GPU driver.
+- **Switching providers:** `MODELS_FILE=models.modal.json ./run.sh` or `MODELS_FILE=models.gcp.json ./run.sh`. Stop the one you are not using (`modal app stop vllm-chat-backend`, or `./deploy/teardown_gcp.sh`), because each bills while it runs.
 
 ## Configuring models and parameters: `models.json`
 
@@ -105,7 +126,7 @@ This file is the single place where you control the experience. Users cannot see
 ```jsonc
 {
   "app":    { "title": "...", "greeting": "...", "suggestions": [...], "default_model": "qwen2.5-7b",
-              "system_prompt": "... {date} ..." },          // {date} becomes today's date
+              "system_prompt_file": "prompts/system.md" },   // the assistant's instructions live in this file
   "limits": { "max_messages": 30, "max_message_chars": 8000, "max_total_chars": 24000,
               "requests_per_minute": 20, "max_concurrent": 16 },
   "models": [{
@@ -115,35 +136,19 @@ This file is the single place where you control the experience. Users cannot see
       "base_url": "http://localhost:8000/v1",               // where this model's vLLM listens
       "vllm_model": "Qwen/Qwen2.5-7B-Instruct",             // must match `vllm serve --model`
       "params": { "temperature": 0.6, "top_p": 0.9, "max_tokens": 1024, "repetition_penalty": 1.05 },
-      "system_prompt": null,                                // optional per-model override
+      "system_prompt_file": null,                           // optional: a different prompt file for this model
       "always_available": false,                            // true = never health-check (serverless backends)
       "timeout_seconds": 300                                // how long to wait for a reply (cold starts need more)
   }]
 }
 ```
 
+- **The opening message** is the plain-text (Markdown) file `prompts/opening.md`, set with `"opening_message_file"` in `app`. The chat shows it as the assistant's first message before the user types anything, so it costs nothing and does not wake a sleeping GPU. The model is told what it said, so the user's answers make sense to it. The shipped one asks about destination and timing, number of days, focus areas (Eat, Stay, Buy, See & do), travellers and budget, and whether to include typical weather. Leave the setting out to show only the greeting and suggestion buttons.
+- **The system prompt** is the plain-text file `prompts/system.md`. Edit it freely: the server re-reads it whenever it changes, so you do not need to restart. Write `{date}` anywhere to insert today's date. Paths are relative to the config file. To give one model its own prompt, add `"system_prompt_file": "prompts/other.md"` to that model. Precedence: the model's file, then the model's inline `"system_prompt"` text, then the shared file, then the shared inline text (inline text still works if you prefer it). A missing or empty prompt file stops the server at startup with a clear message. On Modal the prompt is applied by the chat server, not by the GPU app, so changing it never needs a redeploy.
 - **`params`** are sent to vLLM exactly as written, so anything vLLM's chat endpoint accepts works (`top_k`, `min_p`, `presence_penalty`, `seed`, ...). `model`, `messages` and `stream` are reserved and ignored here.
 - **`max_tokens`** is your cost and latency cap. Set it per model.
 - Changes need a server restart.
 - `limits` are in **characters**, not tokens, because that is cheap to enforce without loading a tokenizer. Keep `max_total_chars` comfortably under the model's `--max-model-len`. Roughly 4 characters per token for English, fewer for code and other languages. The oldest turns are dropped first when a conversation gets too long.
-
-## Prompt templates (fill-in prompts)
-
-Click the **{}** button in the message box to pick a template. Each `{{variable}}` in the template becomes a field; a live preview shows the finished prompt and highlights anything still empty. **Fill & send** sends it (Ctrl/Cmd+Enter in any field works too); **Insert into message** puts it in the box so you can edit it first. You can also type `{{fields}}` straight into the message box and click **Fill them in**.
-
-Templates live in the `"templates"` list of `models.json` / `models.modal.json` (restart the server after editing):
-
-```json
-{
-  "id": "trip_plan",
-  "name": "Plan a trip",
-  "description": "A day-by-day itinerary.",
-  "template": "Plan a {{days}}-day trip to {{destination}}. Budget: {{budget}}",
-  "system_prompt": "You are a practical travel planner. Today's date is {date}."
-}
-```
-
-`system_prompt` is optional and never sent to the browser. When a chat starts from a template, the browser sends only the template id, and the server applies that template's system prompt for the rest of the chat (the header shows "Template: ..."; click it to stop using it). Field names containing words like `text`, `code`, `notes` or `context` get a multi-line box.
 
 ## What users can and can't do
 
@@ -185,6 +190,10 @@ The browser's `/api/config` response contains only each model's `id`, `label`, `
 | `docker-compose.yml` | Two vLLM servers on one NVIDIA host |
 | `deploy/modal_vllm.py` | Deploys a vLLM model to a Modal serverless GPU (scale to zero, API-key protected) |
 | `models.modal.json` | Chat-app config for the Modal deployment (set `base_url` after deploying) |
+| `deploy/deploy_gcp.sh`, `deploy/deploy_gcp_chat.sh`, `deploy/teardown_gcp.sh` | Google Cloud Run: backend (GPU), chat web app, and cleanup |
+| `deploy/gcp/vllm/`, `deploy/gcp/chat/` | Dockerfiles and the container start script used by the GCP scripts |
+| `models.gcp.json` | Chat-app config for the Google Cloud deployment (the script sets `base_url`) |
+| `prompts/system.md`, `prompts/opening.md` | The assistant's instructions and its first message (editable text files) |
 | `dev/mock_vllm.py` | Fake vLLM for development without a GPU |
 | `dev/smoke_test.py` | End-to-end checks, including that injected parameters are ignored (`python dev/smoke_test.py`) |
 

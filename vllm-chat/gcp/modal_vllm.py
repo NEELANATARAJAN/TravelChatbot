@@ -81,9 +81,7 @@ class Server:
         ]
         if FAST_BOOT:
             cmd.append("--enforce-eager")
-        # Skip FlashInfer's sampler: it can spend minutes compiling kernels on a cold start.
-        env = {**os.environ, "VLLM_USE_FLASHINFER_SAMPLER": "0"}
-        self.process = subprocess.Popen(cmd, env=env)
+        self.process = subprocess.Popen(cmd)
 
     @modal.exit()
     def stop(self):
